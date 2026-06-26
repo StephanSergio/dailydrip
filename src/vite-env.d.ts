@@ -6,7 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_PROJECT_ID: string
   readonly VITE_FIREBASE_STORAGE_BUCKET: string
   readonly VITE_FIREBASE_APP_ID: string
-  readonly VITE_ANTHROPIC_API_KEY: string
+  readonly VITE_ANTHROPIC_PROXY_URL: string
 }
 
 interface ImportMeta {

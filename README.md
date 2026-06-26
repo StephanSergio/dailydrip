@@ -8,30 +8,22 @@ philosophy.
 - **Frontend:** React + Vite (static, deployed to GitHub Pages)
 - **Backend:** Firebase Firestore (free Spark plan — no Storage, no billing;
   photos are stored inline in documents)
-- **AI:** Anthropic API (`claude-sonnet-4-6`), called from the browser
+- **AI:** Anthropic API (`claude-sonnet-4-6`), called via a Cloudflare Worker
+  proxy that holds the key (see `worker/`)
 - **CI/CD:** GitHub Actions → GitHub Pages
 
 ---
 
 ## ⚠️ Security warning — read before sharing the URL
 
-This app is built for a **single user** and ships with **wide-open backend rules
-and a browser-exposed AI key**. Lock these down before sharing the deployed URL
-with anyone.
+This app is built for a **single user**. The Anthropic key is kept server-side in
+the Worker (it is **not** in the bundle), but two things still need attention:
 
-1. **Anthropic API key is visible in the deployed bundle.**
-   `VITE_ANTHROPIC_API_KEY` is compiled into the public JavaScript at build
-   time. It is **not** in the git repo (it lives only in `.env`, which is
-   gitignored, and in GitHub Actions secrets) — but anyone who opens the
-   **deployed site** can read it from the network tab. GitHub Secrets hide it
-   from the *source*, not from the *shipped app*.
-   - **Mitigate now:** set a low monthly spend limit on the key in the
-     [Anthropic Console](https://console.anthropic.com), and rotate it if it
-     leaks.
-   - **Fix properly later:** move the Anthropic call behind a small server-side
-     proxy (e.g. a Cloudflare Worker or Firebase Cloud Function) that holds the
-     key, and point the frontend at the proxy instead of calling Anthropic
-     directly. See `src/lib/anthropic.ts`.
+1. **The Worker is a public endpoint.** Because the site is public, the proxy
+   URL is too — anyone who finds it can call it and spend your Anthropic credits.
+   The Worker caps the model and `max_tokens` to limit cost per call and
+   restricts CORS to the app's origins, but the real backstop is a **spend limit
+   on the key** in the [Anthropic Console](https://console.anthropic.com). Set one.
 
 2. **Firestore rules are open** (read/write to all). Anyone with the project
    config could read or write your data. Restrict before sharing — see
@@ -56,7 +48,26 @@ with anyone.
    - `storageBucket` → `VITE_FIREBASE_STORAGE_BUCKET` (optional — unused, safe to leave blank)
    - `appId` → `VITE_FIREBASE_APP_ID`
 4. **Anthropic key:** create one at the
-   [Anthropic Console](https://console.anthropic.com) → `VITE_ANTHROPIC_API_KEY`.
+   [Anthropic Console](https://console.anthropic.com). You'll give it to the
+   Worker (next section), not the frontend.
+
+## 1b. Deploy the Anthropic Worker proxy
+
+The Anthropic key lives in a Cloudflare Worker so it never ships in the public
+site. From the `worker/` folder:
+
+```bash
+cd worker
+npx wrangler login                       # opens browser (free Cloudflare account)
+npx wrangler secret put ANTHROPIC_API_KEY   # paste your Anthropic key when prompted
+npx wrangler deploy
+```
+
+`wrangler deploy` prints the Worker URL, e.g.
+`https://dailydrip-anthropic.<your-subdomain>.workers.dev`. That URL is your
+`VITE_ANTHROPIC_PROXY_URL`. If your deployed site origin isn't
+`https://stephansergio.github.io`, also update `ALLOWED_ORIGINS` in
+`worker/src/index.js` and redeploy.
 
 ### Open rules (default, single-user)
 
@@ -87,10 +98,11 @@ VITE_FIREBASE_AUTH_DOMAIN=...
 VITE_FIREBASE_PROJECT_ID=...
 VITE_FIREBASE_STORAGE_BUCKET=...
 VITE_FIREBASE_APP_ID=...
-VITE_ANTHROPIC_API_KEY=...
+VITE_ANTHROPIC_PROXY_URL=https://dailydrip-anthropic.<your-subdomain>.workers.dev
 ```
 
-`.env` is gitignored — never commit it.
+`VITE_ANTHROPIC_PROXY_URL` is the Worker URL from step 1b (not the Anthropic key
+— the key lives only in the Worker). `.env` is gitignored — never commit it.
 
 ---
 
@@ -107,7 +119,7 @@ add each of:
 - `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_STORAGE_BUCKET`
 - `VITE_FIREBASE_APP_ID`
-- `VITE_ANTHROPIC_API_KEY`
+- `VITE_ANTHROPIC_PROXY_URL` (the Worker URL from step 1b)
 
 Then enable Pages: repo → **Settings → Pages → Source: Deploy from a branch →
 Branch: `gh-pages` / root**. The first push to `main` runs the workflow, which

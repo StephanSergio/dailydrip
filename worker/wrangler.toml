@@ -1,0 +1,6 @@
+name = "dailydrip-anthropic"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# The Anthropic API key is NOT stored here. Set it as an encrypted secret:
+#   npx wrangler secret put ANTHROPIC_API_KEY

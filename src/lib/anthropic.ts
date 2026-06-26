@@ -1,16 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { OCCASION_STYLE } from './options'
 import type { WardrobeItem, OutfitResult, Mode } from '../types'
 
-// NOTE: calling Anthropic directly from the browser exposes the API key in the
-// client bundle. This is acceptable only for a private, single-user app — see
-// the security warning in the README. `dangerouslyAllowBrowser` also sends the
-// required anthropic-dangerous-direct-browser-access header.
-const client = new Anthropic({
-  apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
-  dangerouslyAllowBrowser: true,
-})
-
+// The Anthropic key never lives in the browser. We POST the Messages API body
+// to our Cloudflare Worker proxy, which injects the key server-side. The proxy
+// URL is public (safe to ship in the bundle).
+const PROXY_URL = import.meta.env.VITE_ANTHROPIC_PROXY_URL
 const MODEL = 'claude-sonnet-4-6'
 
 const SYSTEM_PROMPT = `You are DailyDrip, a personal AI stylist for one specific user.
@@ -130,6 +124,15 @@ function parseOutfitJSON(text: string): OutfitResult {
   return JSON.parse(trimmed.slice(start, end + 1)) as OutfitResult
 }
 
+interface AnthropicTextBlock {
+  type: string
+  text?: string
+}
+interface AnthropicResponse {
+  content?: AnthropicTextBlock[]
+  error?: { message?: string }
+}
+
 export interface GenerateArgs {
   wardrobe: WardrobeItem[]
   mode: Mode
@@ -145,6 +148,12 @@ export async function generateOutfits({
   occasion,
   mood,
 }: GenerateArgs): Promise<OutfitResult> {
+  if (!PROXY_URL) {
+    throw new Error(
+      'Stylist not configured — set VITE_ANTHROPIC_PROXY_URL to your Cloudflare Worker URL.',
+    )
+  }
+
   const lean = leanWardrobe(wardrobe)
 
   const contextLines = [`Mode: ${mode}`]
@@ -161,16 +170,30 @@ ${JSON.stringify(lean)}
 
 Build the primary and backup outfits for the inputs above. Return ONLY the JSON object.`
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2000,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userMessage }],
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 2000,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
   })
 
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`Stylist request failed (${res.status}). ${detail.slice(0, 200)}`)
+  }
+
+  const data = (await res.json()) as AnthropicResponse
+  if (data.error) {
+    throw new Error(data.error.message || 'Stylist returned an error')
+  }
+
+  const text = (data.content || [])
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text || '')
     .join('')
 
   return parseOutfitJSON(text)
