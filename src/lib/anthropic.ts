@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { OCCASION_STYLE } from './options'
+import type { WardrobeItem, OutfitResult, Mode } from '../types'
 
 // NOTE: calling Anthropic directly from the browser exposes the API key in the
 // client bundle. This is acceptable only for a private, single-user app — see
@@ -96,9 +97,18 @@ Return ONLY valid JSON, no markdown, no preamble:
   "styleNote": "one sentence — flag if any item clashes with user profile"
 }`
 
+interface LeanItem {
+  id: string
+  name: string
+  category: string
+  subcategory: string
+  colors: string[]
+  style: string[]
+}
+
 // Strip every wardrobe item down to the lean payload Claude needs. Never send
 // photoURL, photoPath, createdAt, or any other field.
-function leanWardrobe(items) {
+function leanWardrobe(items: WardrobeItem[]): LeanItem[] {
   return items.map((i) => ({
     id: i.id,
     name: i.name,
@@ -109,7 +119,7 @@ function leanWardrobe(items) {
   }))
 }
 
-function parseOutfitJSON(text) {
+function parseOutfitJSON(text: string): OutfitResult {
   // The model is asked for raw JSON, but defend against stray prose/fences.
   const trimmed = text.trim()
   const start = trimmed.indexOf('{')
@@ -117,11 +127,24 @@ function parseOutfitJSON(text) {
   if (start === -1 || end === -1) {
     throw new Error('No JSON found in stylist response')
   }
-  return JSON.parse(trimmed.slice(start, end + 1))
+  return JSON.parse(trimmed.slice(start, end + 1)) as OutfitResult
 }
 
-// mode: 'lifestyle' | 'sport' | 'beach'
-export async function generateOutfits({ wardrobe, mode, weather, occasion, mood }) {
+export interface GenerateArgs {
+  wardrobe: WardrobeItem[]
+  mode: Mode
+  weather: string
+  occasion: string
+  mood: string
+}
+
+export async function generateOutfits({
+  wardrobe,
+  mode,
+  weather,
+  occasion,
+  mood,
+}: GenerateArgs): Promise<OutfitResult> {
   const lean = leanWardrobe(wardrobe)
 
   const contextLines = [`Mode: ${mode}`]
@@ -146,7 +169,7 @@ Build the primary and backup outfits for the inputs above. Return ONLY the JSON 
   })
 
   const text = response.content
-    .filter((b) => b.type === 'text')
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map((b) => b.text)
     .join('')
 

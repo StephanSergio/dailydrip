@@ -1,6 +1,22 @@
+import type { SelectorOption } from '../lib/options'
+
+interface SelectorRowProps {
+  label: string
+  options: SelectorOption[]
+  value: string | null
+  onChange: (key: string) => void
+  spread?: boolean
+}
+
 // A horizontal snap-scroll row of icon+label selector pills. When `spread` is
 // set the options fill the full width instead of scrolling (used for moods).
-export default function SelectorRow({ label, options, value, onChange, spread = false }) {
+export default function SelectorRow({
+  label,
+  options,
+  value,
+  onChange,
+  spread = false,
+}: SelectorRowProps) {
   return (
     <div>
       <div className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9ca3af]">

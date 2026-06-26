@@ -1,18 +1,37 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  type ReactNode,
+} from 'react'
 import {
   fetchWardrobe,
   addItem as addItemDb,
   updateItem as updateItemDb,
   deleteItem as deleteItemDb,
 } from '../lib/wardrobe'
+import type { WardrobeItem, WardrobeItemInput } from '../types'
 
-const WardrobeContext = createContext(null)
+interface WardrobeContextValue {
+  items: WardrobeItem[]
+  loading: boolean
+  loaded: boolean
+  error: string | null
+  reload: () => Promise<void>
+  addItem: (item: WardrobeItemInput) => Promise<WardrobeItem>
+  updateItem: (id: string, item: WardrobeItemInput) => Promise<WardrobeItem>
+  removeItem: (item: WardrobeItem) => Promise<void>
+}
 
-export function WardrobeProvider({ children }) {
-  const [items, setItems] = useState([])
+const WardrobeContext = createContext<WardrobeContextValue | null>(null)
+
+export function WardrobeProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<WardrobeItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loaded, setLoaded] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -23,7 +42,7 @@ export function WardrobeProvider({ children }) {
       setLoaded(true)
     } catch (e) {
       console.error(e)
-      setError(e.message || 'Could not load wardrobe')
+      setError(e instanceof Error ? e.message : 'Could not load wardrobe')
     } finally {
       setLoading(false)
     }
@@ -34,19 +53,19 @@ export function WardrobeProvider({ children }) {
     load()
   }, [load])
 
-  const addItem = useCallback(async (item) => {
+  const addItem = useCallback(async (item: WardrobeItemInput) => {
     const saved = await addItemDb(item)
     setItems((prev) => [...prev, saved])
     return saved
   }, [])
 
-  const updateItem = useCallback(async (id, item) => {
+  const updateItem = useCallback(async (id: string, item: WardrobeItemInput) => {
     const saved = await updateItemDb(id, item)
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...saved } : i)))
     return saved
   }, [])
 
-  const removeItem = useCallback(async (item) => {
+  const removeItem = useCallback(async (item: WardrobeItem) => {
     await deleteItemDb(item)
     setItems((prev) => prev.filter((i) => i.id !== item.id))
   }, [])
@@ -60,7 +79,7 @@ export function WardrobeProvider({ children }) {
   )
 }
 
-export function useWardrobe() {
+export function useWardrobe(): WardrobeContextValue {
   const ctx = useContext(WardrobeContext)
   if (!ctx) throw new Error('useWardrobe must be used within WardrobeProvider')
   return ctx

@@ -1,8 +1,14 @@
 import { colorHex } from '../lib/categories'
+import type { WardrobeItem } from '../types'
+
+interface ItemCardProps {
+  item: WardrobeItem | null | undefined
+  onClick?: () => void
+}
 
 // A photo-first wardrobe item card. Used in the wardrobe grid and the outfit
 // result panels.
-export default function ItemCard({ item, onClick }) {
+export default function ItemCard({ item, onClick }: ItemCardProps) {
   if (!item) return null
   return (
     <div

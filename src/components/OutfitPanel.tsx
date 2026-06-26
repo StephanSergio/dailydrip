@@ -1,6 +1,7 @@
 import ItemCard from './ItemCard'
+import type { Outfit, OutfitSlot, WardrobeItem } from '../types'
 
-const SLOTS = [
+const SLOTS: OutfitSlot[] = [
   'bottoms',
   'top',
   'outerwear',
@@ -11,15 +12,21 @@ const SLOTS = [
   'fragrance',
 ]
 
+interface OutfitPanelProps {
+  header: string
+  outfit: Outfit | null | undefined
+  byId: Record<string, WardrobeItem>
+}
+
 // outfit: { bottoms, top, ..., explanation } where each slot is a documentId
-// or null. byId: Map/object of id -> wardrobe item.
-export default function OutfitPanel({ header, outfit, byId }) {
+// or null. byId: object of id -> wardrobe item.
+export default function OutfitPanel({ header, outfit, byId }: OutfitPanelProps) {
   if (!outfit) return null
 
   const cards = SLOTS.map((slot) => outfit[slot])
-    .filter((id) => id)
+    .filter((id): id is string => Boolean(id))
     .map((id) => byId[id])
-    .filter(Boolean)
+    .filter((it): it is WardrobeItem => Boolean(it))
 
   return (
     <section>

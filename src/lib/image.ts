@@ -4,7 +4,12 @@ import { storage } from '../firebase'
 const MAX_BYTES = 5 * 1024 * 1024 // 5MB
 const MAX_EDGE = 800 // longest side, px
 
-export function validateImage(file) {
+export interface UploadedPhoto {
+  photoURL: string
+  photoPath: string
+}
+
+export function validateImage(file: File | null | undefined): string | null {
   if (!file) return 'No file selected'
   if (!file.type.startsWith('image/')) return 'File must be an image'
   if (file.size > MAX_BYTES) return 'Image must be under 5MB'
@@ -13,13 +18,14 @@ export function validateImage(file) {
 
 // Resize the image so its longest side is at most MAX_EDGE, via canvas.
 // Returns a JPEG Blob.
-export function resizeImage(file) {
+export function resizeImage(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
     img.onload = () => {
       URL.revokeObjectURL(url)
-      let { width, height } = img
+      let width = img.width
+      let height = img.height
       const scale = Math.min(1, MAX_EDGE / Math.max(width, height))
       width = Math.round(width * scale)
       height = Math.round(height * scale)
@@ -28,6 +34,10 @@ export function resizeImage(file) {
       canvas.width = width
       canvas.height = height
       const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('Canvas not supported'))
+        return
+      }
       ctx.drawImage(img, 0, 0, width, height)
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error('Resize failed'))),
@@ -44,26 +54,24 @@ export function resizeImage(file) {
 }
 
 // Validate, resize, and upload. Returns { photoURL, photoPath }.
-export async function uploadPhoto(file) {
+export async function uploadPhoto(file: File): Promise<UploadedPhoto> {
   const error = validateImage(file)
   if (error) throw new Error(error)
 
   const blob = await resizeImage(file)
-  const path = `wardrobe/${Date.now()}-${Math.round(
-    performance.now(),
-  )}.jpg`
+  const path = `wardrobe/${Date.now()}-${Math.round(performance.now())}.jpg`
   const storageRef = ref(storage, path)
   await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' })
   const photoURL = await getDownloadURL(storageRef)
   return { photoURL, photoPath: path }
 }
 
-export async function deletePhoto(photoPath) {
+export async function deletePhoto(photoPath: string): Promise<void> {
   if (!photoPath) return
   try {
     await deleteObject(ref(storage, photoPath))
   } catch (e) {
     // Already gone or never existed — not fatal for a delete flow.
-    console.warn('Could not delete storage file:', photoPath, e?.code)
+    console.warn('Could not delete storage file:', photoPath, (e as { code?: string })?.code)
   }
 }

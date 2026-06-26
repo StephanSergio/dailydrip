@@ -3,13 +3,14 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { TABS, colorHex } from '../lib/categories'
 import { useWardrobe } from '../context/WardrobeContext'
 import WardrobeForm from '../components/WardrobeForm'
+import type { WardrobeItem } from '../types'
 
 export default function Wardrobe() {
   const { items, loading, removeItem } = useWardrobe()
   const [tab, setTab] = useState('all')
   const [formOpen, setFormOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [confirmItem, setConfirmItem] = useState(null)
+  const [editing, setEditing] = useState<WardrobeItem | null>(null)
+  const [confirmItem, setConfirmItem] = useState<WardrobeItem | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   const filtered = useMemo(
@@ -21,7 +22,7 @@ export default function Wardrobe() {
     setEditing(null)
     setFormOpen(true)
   }
-  const openEdit = (item) => {
+  const openEdit = (item: WardrobeItem) => {
     setEditing(item)
     setFormOpen(true)
   }
@@ -147,9 +148,7 @@ export default function Wardrobe() {
         <Plus size={20} strokeWidth={1.5} />
       </button>
 
-      {formOpen && (
-        <WardrobeForm existing={editing} onClose={() => setFormOpen(false)} />
-      )}
+      {formOpen && <WardrobeForm existing={editing} onClose={() => setFormOpen(false)} />}
 
       {/* Delete confirm */}
       {confirmItem && (

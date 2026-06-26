@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { X, Upload, Loader2 } from 'lucide-react'
 import {
   GROUP_NAMES,
@@ -11,8 +11,23 @@ import {
 } from '../lib/categories'
 import { uploadPhoto, validateImage } from '../lib/image'
 import { useWardrobe } from '../context/WardrobeContext'
+import type { WardrobeItem } from '../types'
 
-const blank = {
+interface WardrobeFormProps {
+  existing?: WardrobeItem | null
+  onClose: () => void
+}
+
+interface FormState {
+  name: string
+  group: string
+  category: string
+  subcategory: string
+  colors: string[]
+  style: string[]
+}
+
+const blank: FormState = {
   name: '',
   group: '',
   category: '',
@@ -21,11 +36,11 @@ const blank = {
   style: [],
 }
 
-export default function WardrobeForm({ existing, onClose }) {
+export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
   const { addItem, updateItem } = useWardrobe()
   const isEdit = Boolean(existing)
 
-  const [form, setForm] = useState(() => {
+  const [form, setForm] = useState<FormState>(() => {
     if (!existing) return blank
     return {
       name: existing.name || '',
@@ -36,10 +51,10 @@ export default function WardrobeForm({ existing, onClose }) {
       style: existing.style || [],
     }
   })
-  const [file, setFile] = useState(null)
-  const [preview, setPreview] = useState(existing?.photoURL || null)
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(existing?.photoURL || null)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   const categories = useMemo(() => categoriesForGroup(form.group), [form.group])
   const subcategories = useMemo(
@@ -47,19 +62,19 @@ export default function WardrobeForm({ existing, onClose }) {
     [form.group, form.category],
   )
 
-  const set = (patch) => setForm((f) => ({ ...f, ...patch }))
+  const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }))
 
-  const onGroup = (group) => set({ group, category: '', subcategory: '' })
-  const onCategory = (category) => set({ category, subcategory: '' })
+  const onGroup = (group: string) => set({ group, category: '', subcategory: '' })
+  const onCategory = (category: string) => set({ category, subcategory: '' })
 
-  const toggle = (key, value) =>
+  const toggle = (key: 'colors' | 'style', value: string) =>
     set({
       [key]: form[key].includes(value)
         ? form[key].filter((v) => v !== value)
         : [...form[key], value],
     })
 
-  const onFile = (e) => {
+  const onFile = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
     const err = validateImage(f)
@@ -73,15 +88,22 @@ export default function WardrobeForm({ existing, onClose }) {
   }
 
   const canSave =
-    form.name.trim() && form.group && form.category && form.subcategory && (isEdit || file)
+    Boolean(form.name.trim()) &&
+    Boolean(form.group) &&
+    Boolean(form.category) &&
+    Boolean(form.subcategory) &&
+    (isEdit || Boolean(file))
 
-  const onSubmit = async (e) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!canSave || saving) return
     setSaving(true)
     setError(null)
     try {
-      let photo = { photoURL: existing?.photoURL, photoPath: existing?.photoPath }
+      let photo = {
+        photoURL: existing?.photoURL || '',
+        photoPath: existing?.photoPath || '',
+      }
       if (file) {
         photo = await uploadPhoto(file)
       }
@@ -93,11 +115,11 @@ export default function WardrobeForm({ existing, onClose }) {
         subcategory: form.subcategory,
         colors: form.colors,
         style: form.style,
-        photoURL: photo.photoURL || '',
-        photoPath: photo.photoPath || '',
+        photoURL: photo.photoURL,
+        photoPath: photo.photoPath,
       }
 
-      if (isEdit) {
+      if (isEdit && existing) {
         await updateItem(existing.id, payload)
       } else {
         await addItem(payload)
@@ -105,7 +127,7 @@ export default function WardrobeForm({ existing, onClose }) {
       onClose()
     } catch (err) {
       console.error(err)
-      setError(err.message || 'Could not save item')
+      setError(err instanceof Error ? err.message : 'Could not save item')
       setSaving(false)
     }
   }
@@ -268,7 +290,7 @@ export default function WardrobeForm({ existing, onClose }) {
   )
 }
 
-function Field({ label, children }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
       <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[#9ca3af]">
@@ -279,7 +301,10 @@ function Field({ label, children }) {
   )
 }
 
-function Select({ children, ...props }) {
+function Select({
+  children,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}

@@ -23,8 +23,15 @@ import {
   Minus,
   Moon,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
-export const WEATHER = [
+export interface SelectorOption {
+  key: string
+  label: string
+  Icon: LucideIcon
+}
+
+export const WEATHER: SelectorOption[] = [
   { key: 'sunny', label: 'Sunny', Icon: Sun },
   { key: 'cloudy', label: 'Cloudy', Icon: Cloud },
   { key: 'rainy', label: 'Rainy', Icon: CloudRain },
@@ -33,7 +40,7 @@ export const WEATHER = [
   { key: 'windy', label: 'Windy', Icon: Wind },
 ]
 
-export const OCCASIONS = [
+export const OCCASIONS: SelectorOption[] = [
   { key: 'fitness', label: 'Fitness', Icon: Dumbbell },
   { key: 'work', label: 'Work', Icon: Briefcase },
   { key: 'going-out', label: 'Going out', Icon: Wine },
@@ -48,7 +55,7 @@ export const OCCASIONS = [
   { key: 'party', label: 'Party', Icon: Sparkles },
 ]
 
-export const MOODS = [
+export const MOODS: SelectorOption[] = [
   { key: 'fresh-clean', label: 'Fresh', Icon: Leaf },
   { key: 'bold-loud', label: 'Bold', Icon: Zap },
   { key: 'low-key', label: 'Low-key', Icon: Minus },
@@ -56,7 +63,7 @@ export const MOODS = [
 ]
 
 // Style context per occasion — fed to Claude alongside the selections.
-export const OCCASION_STYLE = {
+export const OCCASION_STYLE: Record<string, string> = {
   fitness: 'sporty, performance, breathable',
   work: 'smart, polished, professional',
   'going-out': 'stylish, night-ready, bold',

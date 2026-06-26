@@ -1,12 +1,30 @@
 rules_version = '2';
 
-// ⚠️ OPEN RULES — single-user app. Anyone with the project config can read and
-// write all data. Harden before sharing the app URL (add Firebase Auth and
-// scope access to the authenticated user, or restrict by an allowlist).
+// Shared Firebase project (fitnessapp-92b38) serving Mercato, CleanFit, and
+// DailyDrip. These rules are project-wide — deploying them replaces the live
+// rules, so keep every app's section here.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ── Mercato — no login, shared family app ──
+    match /ingredients/{doc}  { allow read, write: if true; }
+    match /shoppingList/{doc} { allow read, write: if true; }
+    match /categories/{doc}   { allow read, write: if true; }
+    match /dishVotes/{doc}    { allow read, write: if true; }
+    match /weekMenu/{doc}     { allow read, write: if true; }
+
+    // ── DailyDrip — no login, single-user outfit app ──
+    match /wardrobe/{doc}      { allow read, write: if true; }
+    match /outfitHistory/{doc} { allow read, write: if true; }
+
+    // ── CleanFit — per-user, requires login ──
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Everything else stays locked.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

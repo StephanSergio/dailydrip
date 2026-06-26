@@ -1,7 +1,15 @@
 import { NavLink } from 'react-router-dom'
 import { House, Shirt, Clock } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
-const items = [
+interface NavItem {
+  to: string
+  Icon: LucideIcon
+  label: string
+  end?: boolean
+}
+
+const items: NavItem[] = [
   { to: '/', Icon: House, label: 'Today', end: true },
   { to: '/wardrobe', Icon: Shirt, label: 'Wardrobe' },
   { to: '/history', Icon: Clock, label: 'History' },

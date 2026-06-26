@@ -1,15 +1,29 @@
 import { useEffect, useState } from 'react'
 import { fetchHistory } from '../lib/wardrobe'
 import { useWardrobe } from '../context/WardrobeContext'
+import type { HistoryEntry, Outfit, OutfitSlot, WardrobeItem } from '../types'
 
-const SLOTS = ['bottoms', 'top', 'outerwear', 'footwear', 'headwear', 'bag', 'jewellery', 'fragrance']
+const SLOTS: OutfitSlot[] = [
+  'bottoms',
+  'top',
+  'outerwear',
+  'footwear',
+  'headwear',
+  'bag',
+  'jewellery',
+  'fragrance',
+]
 
-const modeLabel = { lifestyle: 'Lifestyle', sport: 'Sport', beach: 'Beach' }
+const modeLabel: Record<string, string> = {
+  lifestyle: 'Lifestyle',
+  sport: 'Sport',
+  beach: 'Beach',
+}
 
 export default function History() {
   const { items } = useWardrobe()
-  const [entries, setEntries] = useState(null)
-  const [error, setError] = useState(null)
+  const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchHistory()
@@ -20,14 +34,20 @@ export default function History() {
       })
   }, [])
 
-  const byId = {}
+  const byId: Record<string, WardrobeItem> = {}
   for (const it of items) byId[it.id] = it
 
-  const fmtDate = (entry) => {
+  const fmtDate = (entry: HistoryEntry) => {
     if (entry.date) return entry.date
     const ts = entry.createdAt?.toDate?.()
     return ts ? ts.toISOString().slice(0, 10) : ''
   }
+
+  const photosFor = (selected: Outfit | undefined) =>
+    SLOTS.map((s) => selected?.[s])
+      .filter((id): id is string => Boolean(id))
+      .map((id) => byId[id])
+      .filter((it): it is WardrobeItem => Boolean(it?.photoURL))
 
   return (
     <div className="mx-auto max-w-md px-4 pb-28 pt-4">
@@ -42,11 +62,7 @@ export default function History() {
       ) : (
         <div className="space-y-4">
           {entries.map((entry) => {
-            const photos = SLOTS.map((s) => entry.selected?.[s])
-              .filter(Boolean)
-              .map((id) => byId[id])
-              .filter((it) => it?.photoURL)
-
+            const photos = photosFor(entry.selected)
             return (
               <div key={entry.id} className="rounded-card border border-[#e5e7eb] p-3">
                 <div className="mb-2 flex items-center justify-between">

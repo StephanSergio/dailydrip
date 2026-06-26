@@ -2,7 +2,9 @@
 // Mirrors the spec exactly. Used to drive the dynamic dropdowns in the
 // wardrobe form and the category tabs in the wardrobe manager.
 
-export const GROUPS = {
+export type Taxonomy = Record<string, Record<string, string[]>>
+
+export const GROUPS: Taxonomy = {
   Bottoms: {
     pants: ['chino', 'jeans', 'jogger', 'cargo', 'trousers'],
     shorts: ['chino short', 'casual short'],
@@ -45,9 +47,9 @@ export const GROUPS = {
   },
 }
 
-export const GROUP_NAMES = Object.keys(GROUPS)
+export const GROUP_NAMES: string[] = Object.keys(GROUPS)
 
-export const STYLE_TAGS = [
+export const STYLE_TAGS: string[] = [
   'casual',
   'smart-casual',
   'sporty',
@@ -57,9 +59,14 @@ export const STYLE_TAGS = [
   'beach',
 ]
 
+export interface Color {
+  name: string
+  hex: string
+}
+
 // Common color palette for the multi-select chips. Lean toward the base
 // palette plus the earth tones / clean brights that suit the user.
-export const COLORS = [
+export const COLORS: Color[] = [
   { name: 'white', hex: '#ffffff' },
   { name: 'grey', hex: '#9ca3af' },
   { name: 'navy', hex: '#1e293b' },
@@ -78,15 +85,15 @@ export const COLORS = [
   { name: 'green', hex: '#22c55e' },
 ]
 
-export const colorHex = (name) => {
+export const colorHex = (name: string): string => {
   const c = COLORS.find((x) => x.name.toLowerCase() === String(name).toLowerCase())
   return c ? c.hex : '#d1d5db'
 }
 
-export const categoriesForGroup = (group) =>
+export const categoriesForGroup = (group: string): string[] =>
   group && GROUPS[group] ? Object.keys(GROUPS[group]) : []
 
-export const subcategoriesFor = (group, category) =>
+export const subcategoriesFor = (group: string, category: string): string[] =>
   group && category && GROUPS[group] && GROUPS[group][category]
     ? GROUPS[group][category]
     : []
@@ -94,15 +101,20 @@ export const subcategoriesFor = (group, category) =>
 // Map a category back to its group (categories are unique enough across
 // groups except "jogger" lives under two — bottoms wins, which is fine for
 // display tabs).
-export const groupForCategory = (category) => {
+export const groupForCategory = (category: string): string | null => {
   for (const g of GROUP_NAMES) {
     if (GROUPS[g][category]) return g
   }
   return null
 }
 
+export interface Tab {
+  key: string
+  label: string
+}
+
 // Wardrobe manager tabs, in display order. "All" first, then every category.
-export const TABS = [
+export const TABS: Tab[] = [
   { key: 'all', label: 'All' },
   { key: 'pants', label: 'Pants' },
   { key: 'shorts', label: 'Shorts' },

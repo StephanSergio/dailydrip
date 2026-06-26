@@ -6,28 +6,29 @@ import OutfitPanel from '../components/OutfitPanel'
 import { useWardrobe } from '../context/WardrobeContext'
 import { generateOutfits } from '../lib/anthropic'
 import { saveOutfitToHistory } from '../lib/wardrobe'
+import type { Mode, OutfitResult, WardrobeItem } from '../types'
 
 export default function Home() {
   const { items, loading: wardrobeLoading } = useWardrobe()
 
   const [sportMode, setSportMode] = useState(false)
-  const [weather, setWeather] = useState(null)
-  const [occasion, setOccasion] = useState(null)
-  const [mood, setMood] = useState(null)
+  const [weather, setWeather] = useState<string | null>(null)
+  const [occasion, setOccasion] = useState<string | null>(null)
+  const [mood, setMood] = useState<string | null>(null)
 
   const [generating, setGenerating] = useState(false)
-  const [result, setResult] = useState(null)
-  const [error, setError] = useState(null)
+  const [result, setResult] = useState<OutfitResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const mode = sportMode ? 'sport' : occasion === 'beach' ? 'beach' : 'lifestyle'
+  const mode: Mode = sportMode ? 'sport' : occasion === 'beach' ? 'beach' : 'lifestyle'
 
   const ready = sportMode
     ? Boolean(weather && mood)
     : Boolean(weather && occasion && mood)
 
   const byId = useMemo(() => {
-    const map = {}
+    const map: Record<string, WardrobeItem> = {}
     for (const it of items) map[it.id] = it
     return map
   }, [items])
@@ -52,14 +53,14 @@ export default function Home() {
       const data = await generateOutfits({
         wardrobe: items,
         mode,
-        weather,
-        occasion: sportMode ? 'fitness' : occasion,
-        mood,
+        weather: weather as string,
+        occasion: sportMode ? 'fitness' : (occasion as string),
+        mood: mood as string,
       })
       setResult(data)
     } catch (e) {
       console.error(e)
-      setError(e.message || 'Could not build your drip. Try again.')
+      setError(e instanceof Error ? e.message : 'Could not build your drip. Try again.')
     } finally {
       setGenerating(false)
     }
@@ -73,9 +74,9 @@ export default function Home() {
         date: new Date().toISOString().slice(0, 10),
         mode: result.mode || mode,
         selected: result.primary,
-        occasion: sportMode ? 'fitness' : occasion,
-        weather,
-        mood,
+        occasion: sportMode ? 'fitness' : (occasion as string),
+        weather: weather as string,
+        mood: mood as string,
       })
       setResult(null)
       setError(null)
