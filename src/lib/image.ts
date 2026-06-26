@@ -86,8 +86,17 @@ export async function importImageFromUrl(url: string): Promise<UploadedPhoto> {
     const ext = blob.type.split('/')[1] || 'jpg'
     const path = `wardrobe/${Date.now()}-${Math.round(performance.now())}.${ext}`
     const storageRef = ref(storage, path)
-    await uploadBytes(storageRef, blob, { contentType: blob.type })
-    const photoURL = await getDownloadURL(storageRef)
+    // Bound the re-host so a missing/unreachable bucket can't hang the save —
+    // on timeout we fall through to the raw-URL fallback below.
+    const photoURL = await Promise.race([
+      (async () => {
+        await uploadBytes(storageRef, blob, { contentType: blob.type })
+        return getDownloadURL(storageRef)
+      })(),
+      new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error('Re-host timed out')), 12000),
+      ),
+    ])
     return { photoURL, photoPath: path }
   } catch (e) {
     // Cross-origin fetch blocked, slow, or upload failed — keep the link itself.
