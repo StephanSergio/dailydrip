@@ -1,11 +1,15 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
-import { storage } from '../firebase'
+// Images are stored INLINE in the Firestore document as a resized base64 data
+// URL — no Firebase Storage bucket (and therefore no Blaze billing) required.
+// Firestore docs cap at ~1MB; an 800px JPEG is comfortably under that, and the
+// AI stylist never receives photos (only item text), so this adds no AI cost.
 
-const MAX_BYTES = 5 * 1024 * 1024 // 5MB
+const MAX_BYTES = 5 * 1024 * 1024 // 5MB source-file ceiling
 const MAX_EDGE = 800 // longest side, px
+const MAX_DOC_IMAGE_CHARS = 900_000 // keep well under Firestore's 1MB doc limit
 
-export interface UploadedPhoto {
+export interface StoredPhoto {
   photoURL: string
+  // Kept for the data model / delete flow. Always '' now (no Storage file).
   photoPath: string
 }
 
@@ -16,9 +20,9 @@ export function validateImage(file: File | null | undefined): string | null {
   return null
 }
 
-// Resize the image so its longest side is at most MAX_EDGE, via canvas.
-// Returns a JPEG Blob.
-export function resizeImage(file: File): Promise<Blob> {
+// Resize the image so its longest side is at most MAX_EDGE, then encode it as a
+// JPEG data URL, stepping quality down if needed to fit a Firestore document.
+function resizeToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
@@ -39,11 +43,18 @@ export function resizeImage(file: File): Promise<Blob> {
         return
       }
       ctx.drawImage(img, 0, 0, width, height)
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error('Resize failed'))),
-        'image/jpeg',
-        0.85,
-      )
+
+      let quality = 0.82
+      let dataUrl = canvas.toDataURL('image/jpeg', quality)
+      while (dataUrl.length > MAX_DOC_IMAGE_CHARS && quality > 0.4) {
+        quality -= 0.15
+        dataUrl = canvas.toDataURL('image/jpeg', quality)
+      }
+      if (dataUrl.length > MAX_DOC_IMAGE_CHARS) {
+        reject(new Error('Image is too detailed to store — try a simpler photo'))
+        return
+      }
+      resolve(dataUrl)
     }
     img.onerror = () => {
       URL.revokeObjectURL(url)
@@ -53,66 +64,25 @@ export function resizeImage(file: File): Promise<Blob> {
   })
 }
 
-// Validate, resize, and upload. Returns { photoURL, photoPath }.
-export async function uploadPhoto(file: File): Promise<UploadedPhoto> {
+// Validate + resize a device photo into an inline data URL.
+export async function uploadPhoto(file: File): Promise<StoredPhoto> {
   const error = validateImage(file)
   if (error) throw new Error(error)
-
-  const blob = await resizeImage(file)
-  const path = `wardrobe/${Date.now()}-${Math.round(performance.now())}.jpg`
-  const storageRef = ref(storage, path)
-  await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' })
-  const photoURL = await getDownloadURL(storageRef)
-  return { photoURL, photoPath: path }
+  const photoURL = await resizeToDataUrl(file)
+  return { photoURL, photoPath: '' }
 }
 
-// Import an image from a web URL. Tries to fetch it and re-host it in our own
-// Storage (durable, immune to link rot / hotlink blocking). If the source
-// blocks cross-origin fetches (CORS), falls back to storing the raw URL —
-// photoPath is then empty, so deletePhoto() is a safe no-op for it.
-export async function importImageFromUrl(url: string): Promise<UploadedPhoto> {
+// A pasted web image is stored as its direct link.
+export async function importImageFromUrl(url: string): Promise<StoredPhoto> {
   const trimmed = url.trim()
   if (!/^https?:\/\//i.test(trimmed)) {
     throw new Error('Enter a valid http(s) image URL')
   }
-  const controller = new AbortController()
-  const abortTimer = setTimeout(() => controller.abort(), 8000)
-  try {
-    const res = await fetch(trimmed, { signal: controller.signal })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const blob = await res.blob()
-    if (!blob.type.startsWith('image/')) throw new Error('URL is not an image')
-    if (blob.size > MAX_BYTES) throw new Error('Image is larger than 5MB')
-    const ext = blob.type.split('/')[1] || 'jpg'
-    const path = `wardrobe/${Date.now()}-${Math.round(performance.now())}.${ext}`
-    const storageRef = ref(storage, path)
-    // Bound the re-host so a missing/unreachable bucket can't hang the save —
-    // on timeout we fall through to the raw-URL fallback below.
-    const photoURL = await Promise.race([
-      (async () => {
-        await uploadBytes(storageRef, blob, { contentType: blob.type })
-        return getDownloadURL(storageRef)
-      })(),
-      new Promise<string>((_, reject) =>
-        setTimeout(() => reject(new Error('Re-host timed out')), 12000),
-      ),
-    ])
-    return { photoURL, photoPath: path }
-  } catch (e) {
-    // Cross-origin fetch blocked, slow, or upload failed — keep the link itself.
-    console.warn('Could not re-host image, using direct URL:', e)
-    return { photoURL: trimmed, photoPath: '' }
-  } finally {
-    clearTimeout(abortTimer)
-  }
+  return { photoURL: trimmed, photoPath: '' }
 }
 
-export async function deletePhoto(photoPath: string): Promise<void> {
-  if (!photoPath) return
-  try {
-    await deleteObject(ref(storage, photoPath))
-  } catch (e) {
-    // Already gone or never existed — not fatal for a delete flow.
-    console.warn('Could not delete storage file:', photoPath, (e as { code?: string })?.code)
-  }
+// Photos live inside the Firestore document, so they're removed when the doc is
+// deleted — there's no separate Storage file to clean up. Kept for callers.
+export async function deletePhoto(_photoPath: string): Promise<void> {
+  // no-op
 }

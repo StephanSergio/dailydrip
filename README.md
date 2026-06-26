@@ -6,7 +6,8 @@ tailored to one specific user's build, skin tone, and basics-with-one-accent
 philosophy.
 
 - **Frontend:** React + Vite (static, deployed to GitHub Pages)
-- **Backend:** Firebase (Firestore + Storage)
+- **Backend:** Firebase Firestore (free Spark plan — no Storage, no billing;
+  photos are stored inline in documents)
 - **AI:** Anthropic API (`claude-sonnet-4-6`), called from the browser
 - **CI/CD:** GitHub Actions → GitHub Pages
 
@@ -30,11 +31,11 @@ with anyone.
    - **Fix properly later:** move the Anthropic call behind a small server-side
      proxy (e.g. a Cloudflare Worker or Firebase Cloud Function) that holds the
      key, and point the frontend at the proxy instead of calling Anthropic
-     directly. See `src/lib/anthropic.js`.
+     directly. See `src/lib/anthropic.ts`.
 
-2. **Firestore and Storage rules are open** (read/write to all). Anyone with the
-   project config could read or write your data. Restrict before sharing —
-   see [Hardening](#hardening).
+2. **Firestore rules are open** (read/write to all). Anyone with the project
+   config could read or write your data. Restrict before sharing — see
+   [Hardening](#hardening).
 
 ---
 
@@ -43,39 +44,29 @@ with anyone.
 1. Go to the [Firebase Console](https://console.firebase.google.com) and create
    a project (or use an existing one).
 2. **Enable Firestore:** Build → Firestore Database → Create database → start in
-   **test mode** (open rules; harden later).
-3. **Enable Storage:** Build → Storage → Get started → start in **test mode**.
-4. **Get your web config:** Project Settings (gear icon) → General → scroll to
+   **test mode** (open rules; harden later). This is the only Firebase service
+   you need — **Storage is not used** (and is not required), so you can stay on
+   the free Spark plan with no billing.
+3. **Get your web config:** Project Settings (gear icon) → General → scroll to
    *Your apps* → if there's no web app, click the `</>` (Web) icon to register
    one. Copy these values:
    - `apiKey` → `VITE_FIREBASE_API_KEY`
    - `authDomain` → `VITE_FIREBASE_AUTH_DOMAIN`
    - `projectId` → `VITE_FIREBASE_PROJECT_ID`
-   - `storageBucket` → `VITE_FIREBASE_STORAGE_BUCKET` (ends in `.appspot.com`)
+   - `storageBucket` → `VITE_FIREBASE_STORAGE_BUCKET` (optional — unused, safe to leave blank)
    - `appId` → `VITE_FIREBASE_APP_ID`
-5. **Anthropic key:** create one at the
+4. **Anthropic key:** create one at the
    [Anthropic Console](https://console.anthropic.com) → `VITE_ANTHROPIC_API_KEY`.
 
 ### Open rules (default, single-user)
 
-Firestore rules:
+Firestore rules (`firestore.rules`):
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /{document=**} { allow read, write: if true; }
-  }
-}
-```
-
-Storage rules:
-
-```
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /{allPaths=**} { allow read, write: if true; }
   }
 }
 ```
@@ -147,25 +138,23 @@ Before sharing the app with anyone other than yourself:
 
 - **Lock the Anthropic key** (spend limit + proxy) — see the
   [security warning](#-security-warning--read-before-sharing-the-url) above.
-- **Restrict Firestore + Storage rules** — add Firebase Auth and scope rules to
-  the authenticated user, or restrict by an allowlist. The current `if true`
-  rules let anyone read and write.
+- **Restrict Firestore rules** — add Firebase Auth and scope rules to the
+  authenticated user, or restrict by an allowlist. The current `if true` rules
+  let anyone read and write.
 
 ---
 
 ## How it works
 
-- **Wardrobe** (`/wardrobe`): add items with a photo, group → category →
-  subcategory, colors, and style tags. A photo can come from an **upload**
-  (validated as an image, < 5MB, resized to 800px longest side via canvas) or a
-  pasted **image URL** — pasted links are fetched and re-hosted in your own
-  Firebase Storage when the source allows it, and fall back to the raw link
-  otherwise. Note: the AI stylist only uses item *text* (name, category,
-  colors, style) — photos are for display, so items without a photo still get
-  styled.
+- **Wardrobe** (`/wardrobe`): add items with group → category → subcategory,
+  colors, and style tags. A photo is **optional** and can come from an
+  **upload** (validated as an image, < 5MB, resized to 800px longest side and
+  stored inline in the Firestore document as a data URL) or a pasted **image
+  URL** (stored as a direct link). The AI stylist only uses item *text* (name,
+  category, colors, style), so **text-only items work fully** — a missing photo
+  just shows a neutral placeholder.
 - **Today** (`/`): pick weather + occasion + mood (or flip Sport mode), and
   Claude returns two complete outfits with explanations and a style note. Only a
   lean wardrobe payload (`id, name, category, subcategory, colors, style`) is
-  sent — never photo URLs or storage paths. "Wearing this" records the primary
-  outfit to history.
+  sent — never photos. "Wearing this" records the primary outfit to history.
 - **History** (`/history`): the last 7 saved outfits, newest first.

@@ -99,15 +99,13 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
     setFilePreview(URL.createObjectURL(f))
   }
 
-  // True when the user has supplied a photo in the active mode.
-  const hasNewPhoto = photoMode === 'upload' ? Boolean(file) : Boolean(url.trim())
-
+  // Photo is optional — the stylist only uses item text, so an item can be
+  // saved with just a description.
   const canSave =
     Boolean(form.name.trim()) &&
     Boolean(form.group) &&
     Boolean(form.category) &&
-    Boolean(form.subcategory) &&
-    (isEdit || hasNewPhoto)
+    Boolean(form.subcategory)
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -170,7 +168,7 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
           {/* Photo */}
           <div>
             <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[#9ca3af]">
-              Photo
+              Photo <span className="lowercase text-[#9ca3af]">(optional)</span>
             </div>
 
             {/* Upload / URL segmented toggle */}
@@ -231,7 +229,7 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
                     className="w-full rounded-card border border-[#e5e7eb] px-3 py-2 text-sm outline-none focus:border-indigo"
                   />
                   <p className="mt-1 text-[11px] text-[#9ca3af]">
-                    Paste a link to an image. We'll re-host it when possible.
+                    Paste a direct link to an image (e.g. from a product page).
                   </p>
                   {urlBroken && (
                     <p className="mt-1 text-[11px] text-red-600">
