@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// ⚠️ OPEN RULES — single-user app. Anyone with the project config can read and
+// write any file. Harden before sharing the app URL (add Firebase Auth and
+// scope access to the authenticated user, or restrict by an allowlist).
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}
