@@ -155,9 +155,14 @@ Before sharing the app with anyone other than yourself:
 
 ## How it works
 
-- **Wardrobe** (`/wardrobe`): add items with photo, group → category →
-  subcategory, colors, and style tags. Photos are validated (image, < 5MB),
-  resized to 800px longest side via canvas, and uploaded to Firebase Storage.
+- **Wardrobe** (`/wardrobe`): add items with a photo, group → category →
+  subcategory, colors, and style tags. A photo can come from an **upload**
+  (validated as an image, < 5MB, resized to 800px longest side via canvas) or a
+  pasted **image URL** — pasted links are fetched and re-hosted in your own
+  Firebase Storage when the source allows it, and fall back to the raw link
+  otherwise. Note: the AI stylist only uses item *text* (name, category,
+  colors, style) — photos are for display, so items without a photo still get
+  styled.
 - **Today** (`/`): pick weather + occasion + mood (or flip Sport mode), and
   Claude returns two complete outfits with explanations and a style note. Only a
   lean wardrobe payload (`id, name, category, subcategory, colors, style`) is

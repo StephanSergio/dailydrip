@@ -1,5 +1,5 @@
 import { useState, useMemo, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
-import { X, Upload, Loader2 } from 'lucide-react'
+import { X, Upload, Link2, Loader2 } from 'lucide-react'
 import {
   GROUP_NAMES,
   categoriesForGroup,
@@ -9,7 +9,7 @@ import {
   groupForCategory,
   colorHex,
 } from '../lib/categories'
-import { uploadPhoto, validateImage } from '../lib/image'
+import { uploadPhoto, importImageFromUrl, validateImage } from '../lib/image'
 import { useWardrobe } from '../context/WardrobeContext'
 import type { WardrobeItem } from '../types'
 
@@ -26,6 +26,8 @@ interface FormState {
   colors: string[]
   style: string[]
 }
+
+type PhotoMode = 'upload' | 'url'
 
 const blank: FormState = {
   name: '',
@@ -51,8 +53,14 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
       style: existing.style || [],
     }
   })
+
+  // Photo can come from a file upload or a pasted web URL.
+  const [photoMode, setPhotoMode] = useState<PhotoMode>('upload')
   const [file, setFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<string | null>(existing?.photoURL || null)
+  const [filePreview, setFilePreview] = useState<string | null>(null)
+  const [url, setUrl] = useState('')
+  const [urlBroken, setUrlBroken] = useState(false)
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -61,6 +69,10 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
     () => subcategoriesFor(form.group, form.category),
     [form.group, form.category],
   )
+
+  // What to show in the preview box, by mode.
+  const preview =
+    photoMode === 'url' ? url.trim() || existing?.photoURL || null : filePreview || existing?.photoURL || null
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }))
 
@@ -84,15 +96,18 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
     }
     setError(null)
     setFile(f)
-    setPreview(URL.createObjectURL(f))
+    setFilePreview(URL.createObjectURL(f))
   }
+
+  // True when the user has supplied a photo in the active mode.
+  const hasNewPhoto = photoMode === 'upload' ? Boolean(file) : Boolean(url.trim())
 
   const canSave =
     Boolean(form.name.trim()) &&
     Boolean(form.group) &&
     Boolean(form.category) &&
     Boolean(form.subcategory) &&
-    (isEdit || Boolean(file))
+    (isEdit || hasNewPhoto)
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -104,8 +119,10 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
         photoURL: existing?.photoURL || '',
         photoPath: existing?.photoPath || '',
       }
-      if (file) {
+      if (photoMode === 'upload' && file) {
         photo = await uploadPhoto(file)
+      } else if (photoMode === 'url' && url.trim()) {
+        photo = await importImageFromUrl(url)
       }
 
       const payload = {
@@ -147,28 +164,86 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
 
         <form onSubmit={onSubmit} className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
           {/* Photo */}
-          <label className="block">
+          <div>
             <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[#9ca3af]">
               Photo
             </div>
-            <div className="flex items-center gap-3">
-              <div className="h-20 w-20 overflow-hidden rounded-card border border-[#e5e7eb] bg-[#f3f4f6]">
-                {preview && (
-                  <img src={preview} alt="preview" className="h-full w-full object-cover" />
+
+            {/* Upload / URL segmented toggle */}
+            <div className="mb-3 inline-flex rounded-full border border-[#e5e7eb] p-0.5">
+              <SegBtn
+                active={photoMode === 'upload'}
+                onClick={() => {
+                  setPhotoMode('upload')
+                  setError(null)
+                }}
+              >
+                <Upload size={20} strokeWidth={1.5} />
+                Upload
+              </SegBtn>
+              <SegBtn
+                active={photoMode === 'url'}
+                onClick={() => {
+                  setPhotoMode('url')
+                  setError(null)
+                }}
+              >
+                <Link2 size={20} strokeWidth={1.5} />
+                Image URL
+              </SegBtn>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="h-20 w-20 flex-none overflow-hidden rounded-card border border-[#e5e7eb] bg-[#f3f4f6]">
+                {preview && !urlBroken && (
+                  <img
+                    src={preview}
+                    alt="preview"
+                    className="h-full w-full object-cover"
+                    onError={() => photoMode === 'url' && setUrlBroken(true)}
+                  />
                 )}
               </div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-indigo px-4 py-2 text-sm text-indigo">
-                <Upload size={20} strokeWidth={1.5} />
-                {preview ? 'Replace' : 'Upload'}
-              </span>
-              <input type="file" accept="image/*" onChange={onFile} className="hidden" />
+
+              {photoMode === 'upload' ? (
+                <label className="cursor-pointer">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-indigo px-4 py-2 text-sm text-indigo">
+                    <Upload size={20} strokeWidth={1.5} />
+                    {filePreview ? 'Replace' : 'Choose photo'}
+                  </span>
+                  <input type="file" accept="image/*" onChange={onFile} className="hidden" />
+                </label>
+              ) : (
+                <div className="flex-1">
+                  <input
+                    type="url"
+                    inputMode="url"
+                    value={url}
+                    onChange={(e) => {
+                      setUrl(e.target.value)
+                      setUrlBroken(false)
+                    }}
+                    placeholder="https://…/image.jpg"
+                    className="w-full rounded-card border border-[#e5e7eb] px-3 py-2 text-sm outline-none focus:border-indigo"
+                  />
+                  <p className="mt-1 text-[11px] text-[#9ca3af]">
+                    Paste a link to an image. We'll re-host it when possible.
+                  </p>
+                  {urlBroken && (
+                    <p className="mt-1 text-[11px] text-red-600">
+                      That image didn't load — check the link.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
+
             {isEdit && (
-              <p className="mt-1 text-[11px] text-[#9ca3af]">
-                Leave empty to keep the current photo.
+              <p className="mt-2 text-[11px] text-[#9ca3af]">
+                Leave the photo untouched to keep the current one.
               </p>
             )}
-          </label>
+          </div>
 
           {/* Name */}
           <Field label="Name">
@@ -287,6 +362,29 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
         </div>
       </div>
     </div>
+  )
+}
+
+function SegBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+        active ? 'bg-indigo text-white' : 'text-[#6b7280]'
+      }`}
+      aria-pressed={active}
+    >
+      {children}
+    </button>
   )
 }
 

@@ -66,6 +66,34 @@ export async function uploadPhoto(file: File): Promise<UploadedPhoto> {
   return { photoURL, photoPath: path }
 }
 
+// Import an image from a web URL. Tries to fetch it and re-host it in our own
+// Storage (durable, immune to link rot / hotlink blocking). If the source
+// blocks cross-origin fetches (CORS), falls back to storing the raw URL —
+// photoPath is then empty, so deletePhoto() is a safe no-op for it.
+export async function importImageFromUrl(url: string): Promise<UploadedPhoto> {
+  const trimmed = url.trim()
+  if (!/^https?:\/\//i.test(trimmed)) {
+    throw new Error('Enter a valid http(s) image URL')
+  }
+  try {
+    const res = await fetch(trimmed)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const blob = await res.blob()
+    if (!blob.type.startsWith('image/')) throw new Error('URL is not an image')
+    if (blob.size > MAX_BYTES) throw new Error('Image is larger than 5MB')
+    const ext = blob.type.split('/')[1] || 'jpg'
+    const path = `wardrobe/${Date.now()}-${Math.round(performance.now())}.${ext}`
+    const storageRef = ref(storage, path)
+    await uploadBytes(storageRef, blob, { contentType: blob.type })
+    const photoURL = await getDownloadURL(storageRef)
+    return { photoURL, photoPath: path }
+  } catch (e) {
+    // Cross-origin fetch blocked or upload failed — keep the link itself.
+    console.warn('Could not re-host image, using direct URL:', e)
+    return { photoURL: trimmed, photoPath: '' }
+  }
+}
+
 export async function deletePhoto(photoPath: string): Promise<void> {
   if (!photoPath) return
   try {
