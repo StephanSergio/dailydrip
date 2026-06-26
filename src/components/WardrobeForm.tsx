@@ -120,7 +120,11 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
         photoPath: existing?.photoPath || '',
       }
       if (photoMode === 'upload' && file) {
-        photo = await uploadPhoto(file)
+        photo = await withTimeout(
+          uploadPhoto(file),
+          25000,
+          "Photo upload timed out. Is Firebase Storage enabled and are the Storage rules published?",
+        )
       } else if (photoMode === 'url' && url.trim()) {
         photo = await importImageFromUrl(url)
       }
@@ -136,11 +140,11 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
         photoPath: photo.photoPath,
       }
 
-      if (isEdit && existing) {
-        await updateItem(existing.id, payload)
-      } else {
-        await addItem(payload)
-      }
+      await withTimeout(
+        isEdit && existing ? updateItem(existing.id, payload) : addItem(payload),
+        25000,
+        "Saving timed out. Is the Firestore database created and are the rules published?",
+      )
       onClose()
     } catch (err) {
       console.error(err)
@@ -363,6 +367,14 @@ export default function WardrobeForm({ existing, onClose }: WardrobeFormProps) {
       </div>
     </div>
   )
+}
+
+// Reject if a promise doesn't settle in time, so a save can't hang forever.
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ])
 }
 
 function SegBtn({

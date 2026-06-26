@@ -75,8 +75,10 @@ export async function importImageFromUrl(url: string): Promise<UploadedPhoto> {
   if (!/^https?:\/\//i.test(trimmed)) {
     throw new Error('Enter a valid http(s) image URL')
   }
+  const controller = new AbortController()
+  const abortTimer = setTimeout(() => controller.abort(), 8000)
   try {
-    const res = await fetch(trimmed)
+    const res = await fetch(trimmed, { signal: controller.signal })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const blob = await res.blob()
     if (!blob.type.startsWith('image/')) throw new Error('URL is not an image')
@@ -88,9 +90,11 @@ export async function importImageFromUrl(url: string): Promise<UploadedPhoto> {
     const photoURL = await getDownloadURL(storageRef)
     return { photoURL, photoPath: path }
   } catch (e) {
-    // Cross-origin fetch blocked or upload failed — keep the link itself.
+    // Cross-origin fetch blocked, slow, or upload failed — keep the link itself.
     console.warn('Could not re-host image, using direct URL:', e)
     return { photoURL: trimmed, photoPath: '' }
+  } finally {
+    clearTimeout(abortTimer)
   }
 }
 
